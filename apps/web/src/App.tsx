@@ -27,6 +27,19 @@ export default function App() {
     }
   }
 
+  const handleDelete = async (id: number) => {
+    try {
+      await notesApi.remove(id)
+      setNotes((prev) => prev.filter((note) => note.id !== id))
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Failed to delete note')
+      }
+    }
+  }
+
   return (
     <main>
       <h1 data-testid="note-heading">My Notes</h1>
@@ -61,6 +74,13 @@ export default function App() {
           <li key={note.id} data-testid="note-row" aria-label="Note">
             <h3>{note.title}</h3>
             <p>{note.body}</p>
+            <button
+              type="button"
+              data-testid="note-delete"
+              onClick={() => handleDelete(note.id)}
+            >
+              Delete
+            </button>
           </li>
         ))}
       </ul>
