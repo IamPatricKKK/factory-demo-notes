@@ -1,0 +1,103 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U app" --health-interval 2s --health-retries 15
+    env:
+      DATABASE_URL: postgres://app:app@localhost:5432/app
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Secret scan
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --no-banner --redact
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level high
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm test:integration
+      - name: Build the image and run E2E against it
+        run: |
+          docker compose up -d --build --wait
+          pnpm --filter e2e exec playwright install --with-deps chromium
+          BASE_URL=http://localhost:8080 pnpm test:e2e
+
+  deploy-staging:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: staging
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      APP_NAME: ${{ vars.APP_NAME }}
+      BASE_DOMAIN: ${{ vars.BASE_DOMAIN }}
+      GHCR_USER: ${{ github.actor }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - name: Check deploy target
+        id: target
+        run: |
+          if [ -z "$VPS_HOST" ] || [ -z "$APP_NAME" ] || [ -z "$BASE_DOMAIN" ]; then
+            echo "::notice::VPS_HOST, APP_NAME or BASE_DOMAIN not set, skipping staging deploy"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.target.outputs.enabled == 'true'
+      - name: Build and push image
+        if: steps.target.outputs.enabled == 'true'
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          docker build -t "${{ steps.target.outputs.image }}:$COMMIT_SHA" .
+          docker push "${{ steps.target.outputs.image }}:$COMMIT_SHA"
+      - name: Deploy to staging
+        id: deploy
+        if: steps.target.outputs.enabled == 'true'
+        run: bash deploy/remote.sh staging "${{ steps.target.outputs.image }}" "$COMMIT_SHA"
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.target.outputs.enabled == 'true'
+        with:
+          name: deploy-record
+          path: deploy-record.json
+          if-no-files-found: ignore
+      - uses: pnpm/action-setup@v6
+        if: steps.target.outputs.enabled == 'true'
+      - uses: actions/setup-node@v7
+        if: steps.target.outputs.enabled == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: E2E against staging
+        if: steps.target.outputs.enabled == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter e2e exec playwright install --with-deps chromium
+          BASE_URL="https://$APP_NAME.staging.$BASE_DOMAIN" pnpm test:e2e

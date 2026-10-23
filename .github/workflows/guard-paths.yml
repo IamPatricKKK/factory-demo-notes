@@ -1,0 +1,36 @@
+name: guard-paths
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check changed paths against the branch's role
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.head_ref }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          files=$(gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" --name-only)
+          echo "$files"
+
+          blocked='^(\.github/|deploy/|\.env)'
+          case "$BRANCH" in
+            task/*) blocked='^(\.github/|deploy/|\.env|e2e/)' ;;
+            qa/*)   bad=$(echo "$files" | grep -v '^e2e/' || true)
+                    if [ -n "$bad" ]; then echo "::error::qa/* branches may only change e2e/:"; echo "$bad"; exit 1; fi ;;
+          esac
+
+          bad=$(echo "$files" | grep -E "$blocked" || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Protected paths changed on $BRANCH:"
+            echo "$bad"
+            exit 1
+          fi

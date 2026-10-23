@@ -1,0 +1,13 @@
+{
+  "name": "app",
+  "private": true,
+  "packageManager": "pnpm@10.33.3",
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter api test",
+    "test:integration": "pnpm --filter api test:e2e",
+    "test:e2e": "pnpm --filter e2e test",
+    "build": "pnpm --filter api build && pnpm --filter web build"
+  }
+}

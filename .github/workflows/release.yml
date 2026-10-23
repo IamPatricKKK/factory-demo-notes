@@ -1,0 +1,44 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Image tag that already passed staging (commit SHA)
+        required: true
+        type: string
+
+concurrency: production
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      APP_NAME: ${{ vars.APP_NAME }}
+      BASE_DOMAIN: ${{ vars.BASE_DOMAIN }}
+      GHCR_USER: ${{ github.actor }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      COMMIT_SHA: ${{ inputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Deploy to production
+        run: |
+          if [ -z "$VPS_HOST" ] || [ -z "$APP_NAME" ] || [ -z "$BASE_DOMAIN" ]; then
+            echo "::error::VPS_HOST, APP_NAME and BASE_DOMAIN must be set to release"
+            exit 1
+          fi
+          bash deploy/remote.sh production "ghcr.io/${GITHUB_REPOSITORY,,}" "$IMAGE_TAG"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: deploy-record
+          path: deploy-record.json
+          if-no-files-found: ignore
