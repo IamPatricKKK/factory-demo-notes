@@ -1,4 +1,9 @@
-export type Item = { id: number; title: string; done: boolean; createdAt: string };
+export type Note = {
+  id: number;
+  title: string;
+  body: string;
+  createdAt: string;
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -9,10 +14,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
-export const itemsApi = {
-  list: () => request<Item[]>('/items'),
-  create: (title: string) => request<Item>('/items', { method: 'POST', body: JSON.stringify({ title }) }),
-  update: (id: number, patch: Partial<Pick<Item, 'title' | 'done'>>) =>
-    request<Item>(`/items/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  remove: (id: number) => request<void>(`/items/${id}`, { method: 'DELETE' }),
+export const notesApi = {
+  list: () => request<Note[]>('/notes'),
 };
