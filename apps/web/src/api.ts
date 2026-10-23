@@ -21,4 +21,8 @@ export const notesApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  remove: (id: number) =>
+    request<void>(`/notes/${id}`, {
+      method: 'DELETE',
+    }),
 };
