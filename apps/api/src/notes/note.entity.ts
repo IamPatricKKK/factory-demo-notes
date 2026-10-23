@@ -1,14 +1,14 @@
 import { defineEntity, p } from '@mikro-orm/core';
 
-const ItemSchema = defineEntity({
-  name: 'Item',
+const NoteSchema = defineEntity({
+  name: 'Note',
   properties: {
     id: p.integer().primary(),
     title: p.string(),
-    done: p.boolean().default(false),
+    body: p.string(),
     createdAt: p.datetime().onCreate(() => new Date()),
   },
 });
 
-export class Item extends ItemSchema.class {}
-ItemSchema.setClass(Item);
+export class Note extends NoteSchema.class {}
+NoteSchema.setClass(Note);

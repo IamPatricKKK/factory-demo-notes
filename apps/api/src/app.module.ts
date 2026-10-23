@@ -4,13 +4,13 @@ import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import config from './mikro-orm.config.js';
 import { HealthController } from './health/health.controller.js';
-import { ItemsModule } from './items/items.module.js';
+import { NotesModule } from './notes/notes.module.js';
 
 @Module({
   imports: [
     MikroOrmModule.forRoot(config),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
-    ItemsModule,
+    NotesModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
