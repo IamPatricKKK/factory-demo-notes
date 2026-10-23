@@ -16,4 +16,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const notesApi = {
   list: () => request<Note[]>('/notes'),
+  create: (data: { title: string; body: string }) =>
+    request<Note>('/notes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
